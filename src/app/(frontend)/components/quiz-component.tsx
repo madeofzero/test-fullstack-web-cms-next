@@ -192,7 +192,7 @@ export default function FakeTest() {
       <p className="text-center mb-6 text-lg italic">{getResultLabel()}</p>
 
       <section>
-        <label htmlFor="notes" className="block font-semibold mb-1">
+        <label htmlFor="notes" className="block font-semibold mb-1 ">
           Notes (optional)
         </label>
         <textarea
@@ -200,7 +200,7 @@ export default function FakeTest() {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={4}
-          className="w-full p-2 border rounded text-black"
+          className="w-full p-2 border rounded text-black bg-white"
           placeholder="Write your notes here..."
         />
       </section>
@@ -214,14 +214,14 @@ export default function FakeTest() {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full p-2 border rounded text-black"
+          className="w-full p-2 border rounded text-black bg-white"
           placeholder="Your email address"
         />
       </section>
 
       <button
         onClick={() => {
-          console.log(answers)
+          console.log({ totalScore, answers, notes, email })
           alert('Backend saving not implemented in this base UI')
         }}
         className="mt-6 w-full py-3 rounded bg-green-600 text-white font-semibold hover:bg-green-700"
