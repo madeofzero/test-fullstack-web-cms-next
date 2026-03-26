@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import type { CollectionSlug } from 'payload'
 import { decrypt, encrypt, isEncrypted } from '../lib/crypto'
 
 export const QuizAttempts: CollectionConfig = {
@@ -41,7 +42,7 @@ export const QuizAttempts: CollectionConfig = {
     {
       name: 'quiz',
       type: 'relationship',
-      relationTo: 'quizzes' as any,
+      relationTo: 'quizzes' as CollectionSlug,
       required: false,
     },
     {

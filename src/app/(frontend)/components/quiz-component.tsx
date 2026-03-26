@@ -1,18 +1,11 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { calculateTotalScore, getResultByScore, getScoreBreakdown } from '@/lib/scoring'
-
-type Option = { label: string; score: number }
-type Question = { id: number; question: string; options: Option[] }
-type Result = { minScore: number; maxScore: number; label: string }
-type QuizData = { title: string; questions: Question[]; results: Result[] }
-type SelectedAnswer = { label: string; score: number }
-type StoredAttempt = {
-  totalScore: number
-  resultLabel: string
-  notes?: string
-  answers?: Array<{ questionId: number; selectedLabel: string; selectedScore: number }>
-}
+import { calculateTotalScore, getResultByScore } from '@/lib/scoring'
+import { PROGRESS_WIDTH_CLASS } from '@/app/(frontend)/constants'
+import type { Option, QuizData, SelectedAnswer, StoredAttempt } from '@/app/(frontend)/types'
+import { fetchLatestAttemptByEmail, saveAttempt } from '@/app/(frontend)/services/attempts'
+import { ScoreBreakdown } from '@/app/(frontend)/components/ScoreBreakdown'
+import { PreviousAttemptBreakdown } from '@/app/(frontend)/components/PreviousAttemptBreakdown'
 
 function stableOptionOrder(questionId: number, label: string): number {
   return `${questionId}:${label}`.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
@@ -32,6 +25,18 @@ export default function FakeTest({ quizData }: { quizData: QuizData }) {
   const [previousAttempt, setPreviousAttempt] = useState<StoredAttempt | null>(null)
 
   const { questions, results } = quizData
+
+  const shuffledQuestions = useMemo(
+    () =>
+      questions.map((question) => ({
+        ...question,
+        options: [...question.options].sort(
+          (a, b) => stableOptionOrder(question.id, a.label) - stableOptionOrder(question.id, b.label),
+        ),
+      })),
+    [questions],
+  )
+
   if (!questions.length || !results.length) {
     return (
       <main className="mx-auto min-h-screen max-w-full bg-gradient-to-b from-cyan-50 via-sky-50 to-indigo-50 px-4 py-6 md:px-8">
@@ -45,17 +50,6 @@ export default function FakeTest({ quizData }: { quizData: QuizData }) {
     )
   }
 
-  const shuffledQuestions = useMemo(
-    () =>
-      questions.map((question) => ({
-        ...question,
-        options: [...question.options].sort(
-          (a, b) => stableOptionOrder(question.id, a.label) - stableOptionOrder(question.id, b.label),
-        ),
-      })),
-    [questions],
-  )
-
   // Handler to select an answer option
   const selectAnswer = (questionId: number, option: Option) => {
     setAnswers((prev) => ({ ...prev, [questionId]: { label: option.label, score: option.score } }))
@@ -66,25 +60,9 @@ export default function FakeTest({ quizData }: { quizData: QuizData }) {
 
   // Find matching result label
   const getResultLabel = () => getResultByScore(totalScore, results)
-  const scoreBreakdown = getScoreBreakdown(
-    Object.fromEntries(Object.entries(answers).map(([questionId, answer]) => [Number(questionId), answer.score])),
-  )
   const totalQuestions = shuffledQuestions.length
-  const answeredCount = Object.keys(answers).length
   const progressStep = Math.max(1, currentQuestionIndex + 1)
   const currentQuestion = shuffledQuestions[currentQuestionIndex]
-  const progressWidthClass: Record<number, string> = {
-    1: 'w-[10%]',
-    2: 'w-[20%]',
-    3: 'w-[30%]',
-    4: 'w-[40%]',
-    5: 'w-[50%]',
-    6: 'w-[60%]',
-    7: 'w-[70%]',
-    8: 'w-[80%]',
-    9: 'w-[90%]',
-    10: 'w-full',
-  }
 
   const handleSave = async () => {
     if (!email.trim()) {
@@ -102,24 +80,13 @@ export default function FakeTest({ quizData }: { quizData: QuizData }) {
         selectedScore: answer.score,
       }))
 
-      const response = await fetch('/api/quiz-attempts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim(),
-          totalScore,
-          resultLabel: getResultLabel(),
-          notes: notes.trim() || undefined,
-          answers: answersPayload,
-        }),
+      await saveAttempt({
+        email: email.trim(),
+        totalScore,
+        resultLabel: getResultLabel(),
+        notes: notes.trim() || undefined,
+        answers: answersPayload,
       })
-
-      if (!response.ok) {
-        const errorBody = (await response.text()) || 'Save failed'
-        throw new Error(errorBody)
-      }
 
       setSaveMessage('Result saved successfully.')
     } catch (error) {
@@ -142,20 +109,7 @@ export default function FakeTest({ quizData }: { quizData: QuizData }) {
     setPreviousAttempt(null)
 
     try {
-      const query = new URLSearchParams({
-        'where[email][equals]': emailToFind,
-        sort: '-createdAt',
-        limit: '1',
-      })
-
-      const response = await fetch(`/api/quiz-attempts?${query.toString()}`)
-      if (!response.ok) {
-        const errorBody = (await response.text()) || 'Lookup failed'
-        throw new Error(errorBody)
-      }
-
-      const data = (await response.json()) as { docs?: StoredAttempt[] }
-      const latest = data.docs?.[0]
+      const latest = await fetchLatestAttemptByEmail(emailToFind)
 
       if (!latest) {
         setLookupMessage('No previous result found for that email.')
@@ -219,7 +173,7 @@ export default function FakeTest({ quizData }: { quizData: QuizData }) {
 
           <div className="mb-4 h-2 w-full rounded-full bg-sky-100 sm:mb-6">
             <div
-              className={`h-2 rounded-full bg-[var(--color-primary)] transition-all duration-300 ${progressWidthClass[progressStep] ?? 'w-[10%]'}`}
+              className={`h-2 rounded-full bg-[var(--color-primary)] transition-all duration-300 ${PROGRESS_WIDTH_CLASS[progressStep] ?? 'w-[10%]'}`}
             />
           </div>
 
@@ -272,23 +226,7 @@ export default function FakeTest({ quizData }: { quizData: QuizData }) {
       </p>
         <p className="text-sm font-semibold italic text-[var(--color-primary)] sm:text-lg">{getResultLabel()}</p>
       </section>
-      <details className="group rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <summary className="heading-font flex cursor-pointer list-none items-center justify-between text-base font-bold text-slate-800 sm:text-lg">
-          <span>Score Breakdown</span>
-          <span className="text-slate-500 transition-transform duration-200 group-open:rotate-180">▼</span>
-        </summary>
-        <p className="mt-2 mb-3 text-xs text-slate-600 sm:text-sm">
-          Total score is the sum of selected option scores from all 10 questions.
-        </p>
-        <ul className="space-y-1 text-xs sm:text-sm">
-          {scoreBreakdown.map(({ questionId, score }) => (
-            <li key={questionId} className="flex items-center justify-between border-b border-slate-200 pb-1 text-slate-700">
-              <span>Question {questionId}</span>
-              <span>+{score}</span>
-            </li>
-          ))}
-        </ul>
-      </details>
+      <ScoreBreakdown answers={answers} />
 
       <section>
         <label htmlFor="notes" className="mb-1 block text-sm font-semibold text-slate-700">
@@ -352,28 +290,7 @@ export default function FakeTest({ quizData }: { quizData: QuizData }) {
 
         {lookupMessage ? <p className="mt-2 text-xs text-slate-600 sm:text-sm">{lookupMessage}</p> : null}
 
-        {previousAttempt ? (
-          <div className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700 sm:text-sm">
-            <p>
-              Previous total score: <strong>{previousAttempt.totalScore}</strong>
-            </p>
-            <p className="italic">{previousAttempt.resultLabel}</p>
-            {previousAttempt.notes ? <p>Notes: {previousAttempt.notes}</p> : <p>Notes: (none)</p>}
-            <div>
-              <p className="mb-1 font-semibold">Previous breakdown</p>
-              <ul className="space-y-1">
-                {(previousAttempt.answers ?? []).map((answer) => (
-                  <li key={`${answer.questionId}-${answer.selectedLabel}`} className="flex justify-between">
-                    <span>
-                      Q{answer.questionId}: {answer.selectedLabel}
-                    </span>
-                    <span>+{answer.selectedScore}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        ) : null}
+        {previousAttempt ? <PreviousAttemptBreakdown attempt={previousAttempt} /> : null}
       </section>
 
       <button
@@ -383,6 +300,12 @@ export default function FakeTest({ quizData }: { quizData: QuizData }) {
           setAnswers({})
           setNotes('')
           setEmail('')
+          setSaveMessage('')
+          setIsSaving(false)
+          setLookupEmail('')
+          setLookupMessage('')
+          setIsLookingUp(false)
+          setPreviousAttempt(null)
         }}
         className="mt-2 w-full rounded-full border border-[var(--color-primary)]/50 bg-white py-2.5 text-xs font-semibold text-[var(--color-primary)] shadow-sm transition hover:border-[var(--color-primary)] hover:bg-cyan-50 hover:text-[var(--color-primary-hover)] sm:py-3 sm:text-base"
       >

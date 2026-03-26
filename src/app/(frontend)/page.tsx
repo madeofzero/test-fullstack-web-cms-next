@@ -58,12 +58,15 @@ export default async function HomePage() {
     try {
       // Clear existing quizzes so the default test data is consistent and editable.
       await Promise.all(
-        (docs || []).map((doc: any) =>
-          payload.delete({
+        (docs || []).map((doc) => {
+          const id = (doc as { id?: unknown })?.id
+          if (id === undefined || id === null) return Promise.resolve()
+
+          return payload.delete({
             collection: 'quizzes',
-            id: String(doc?.id),
-          }),
-        ),
+            id: String(id),
+          })
+        }),
       )
 
       const created = await payload.create({
