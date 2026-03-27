@@ -1,3 +1,5 @@
+NOTE: Please make sure to CLONE this repo and create a new repo in your Github. DO NOT submit a PR in this repo.
+
 If you spent more than 2 hours — or didn’t finish everything — that’s totally fine. This test is meant to see how you think and approach real-world tasks.
 
 We’d love for you to take a moment to reflect and share your process.
