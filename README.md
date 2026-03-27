@@ -1,3 +1,6 @@
+> NOTE: Please make sure to CLONE(NOT FORK) this repo and create a new repo in your Github. DO NOT submit a PR in this repo.
+
+
 # Full Stack Developer Quiz App Test
 This template comes configured with the bare minimum to get started on anything you need.
 
